@@ -196,6 +196,32 @@ function ChatMessage({ message, isLast, isLoading, reload }: ChatMessageProps) {
       ),
     );
 
+  // Add a component to render debug info
+  const renderDebugInfo = () => {
+    // Only render for assistant messages
+    if (message.role !== 'assistant') return null;
+
+    const { responseTime, modelName } = message; // Get data from the message object
+
+    // Only render if we have at least one piece of debug info
+    if (responseTime === undefined && modelName === undefined) return null;
+
+    return (
+      <div className="mt-2 p-2 text-xs border rounded-md bg-secondary/50 text-muted-foreground">
+        {' '}
+        {/* Styling */}
+        <p>Debug Info:</p>
+        <ul className="list-disc list-inside ml-2">
+          {modelName && <li>Model: {modelName}</li>}
+          {responseTime !== undefined && (
+            <li>Response Time: {(responseTime / 1000).toFixed(2)}s</li> // Format time
+          )}
+          {/* Add more debug info here if needed */}
+        </ul>
+      </div>
+    );
+  };
+
   const renderActionButtons = () =>
     message.role === 'assistant' && (
       <div className="pt-2 flex gap-1 items-center text-muted-foreground">
@@ -324,6 +350,8 @@ function ChatMessage({ message, isLast, isLoading, reload }: ChatMessageProps) {
           )}
 
           {renderActionButtons()}
+          {/* Render the debug info below the message content */}
+          {renderDebugInfo()}
         </ChatBubbleMessage>
       </ChatBubble>
     </motion.div>

@@ -44,6 +44,12 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
       }
     },
     onFinish: (message) => {
+      const endTime = Date.now();
+      const responseTime = requestStartTime
+        ? endTime - requestStartTime
+        : undefined;
+      setRequestStartTime(null); // Reset start time
+
       const savedMessages = getMessagesById(id);
 
       // Debug message contents for function calls
@@ -55,17 +61,27 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
         hasFunctionCall: !!(message as any).function_call,
         hasFunctionResult: !!(message as any).function_call_result,
         messageKeys: Object.keys(message),
+        message: message, // Include the full message in the log
       });
 
       // Handle the case where the message is a function call result
       // Note: This is a workaround as the Vercel AI SDK doesn't fully support function calls yet
       const extendedMessage = message as ExtendedMessage;
+
+      // Add debug info to the assistant message
+      if (extendedMessage.role === 'assistant') {
+        extendedMessage.responseTime = responseTime;
+        extendedMessage.modelName =
+          selectedModel === null ? undefined : selectedModel; // Convert null to undefined
+      }
+
       saveMessages(id, [...savedMessages, extendedMessage]);
 
       setLoadingSubmit(false);
       router.replace(`/c/${id}`);
     },
     onError: (error) => {
+      setRequestStartTime(null); // Reset start time on error too
       setLoadingSubmit(false);
       router.replace('/');
       console.error(error.message);
@@ -77,6 +93,7 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
   const messages = rawMessages as ExtendedMessage[];
 
   const [loadingSubmit, setLoadingSubmit] = React.useState(false);
+  const [requestStartTime, setRequestStartTime] = useState<number | null>(null); // Add state for start time
   const formRef = useRef<HTMLFormElement>(null);
   const base64Images = useChatStore((state) => state.base64Images);
   const setBase64Images = useChatStore((state) => state.setBase64Images);
@@ -93,6 +110,9 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
       toast.error('Please select a model');
       return;
     }
+
+    // Record start time before sending the request
+    setRequestStartTime(Date.now());
 
     const userMessage: Message = {
       id: generateId(),

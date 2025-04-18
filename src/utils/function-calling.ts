@@ -10,6 +10,10 @@ export interface FunctionCall {
 export interface ExtendedMessage extends Message {
   function_call?: FunctionCall;
   function_call_result?: string;
+  // Add fields for debug info
+  responseTime?: number; // in milliseconds
+  tokenCount?: number;
+  modelName?: string;
 }
 
 // Define function definition type since it may not be exported directly
