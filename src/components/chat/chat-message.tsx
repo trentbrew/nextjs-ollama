@@ -30,12 +30,14 @@ import {
 } from '../../utils/text-to-speech';
 import { useVoiceStore } from '../../utils/voice-store';
 import { FunctionCallResult } from '../function-call-result';
-import { ExtendedMessage } from '../../utils/function-calling';
+import { ExtendedMessage } from '@/utils/function-calling';
+import { StreamData } from 'ai';
 
 export type ChatMessageProps = {
   message: ExtendedMessage;
   isLast: boolean;
   isLoading: boolean | undefined;
+  toolCallInfo: { toolName: string; toolCallId: string } | null;
   reload: (
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
@@ -55,7 +57,13 @@ const MOTION_CONFIG = {
   },
 };
 
-function ChatMessage({ message, isLast, isLoading, reload }: ChatMessageProps) {
+function ChatMessage({
+  message,
+  isLast,
+  isLoading,
+  toolCallInfo,
+  reload,
+}: ChatMessageProps) {
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -183,8 +191,17 @@ function ChatMessage({ message, isLast, isLoading, reload }: ChatMessageProps) {
       </details>
     );
 
-  const renderContent = () =>
-    contentParts.map((part, index) =>
+  const renderContent = () => {
+    // If tool call is in progress and no content/result yet, show indicator
+    if (toolCallInfo && !cleanContent && !functionCallResult) {
+      return (
+        <div className="text-muted-foreground italic text-sm">
+          Using {toolCallInfo.toolName} tool...
+        </div>
+      );
+    }
+    // Otherwise, render normal content
+    return contentParts.map((part, index) =>
       index % 2 === 0 ? (
         <Markdown key={index} remarkPlugins={[remarkGfm]}>
           {part}
@@ -195,6 +212,7 @@ function ChatMessage({ message, isLast, isLoading, reload }: ChatMessageProps) {
         </pre>
       ),
     );
+  };
 
   // Add a component to render debug info
   const renderDebugInfo = () => {

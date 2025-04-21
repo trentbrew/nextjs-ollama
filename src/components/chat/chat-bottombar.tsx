@@ -1,31 +1,31 @@
-"use client";
+'use client';
 
-import React, { useEffect } from "react";
-import { ChatProps } from "./chat";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import { Button, buttonVariants } from "../ui/button";
-import TextareaAutosize from "react-textarea-autosize";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect } from 'react';
+import { ChatProps } from './chat';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { Button, buttonVariants } from '../ui/button';
+import TextareaAutosize from 'react-textarea-autosize';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Cross2Icon,
   ImageIcon,
   PaperPlaneIcon,
   StopIcon,
-} from "@radix-ui/react-icons";
-import { Mic, SendHorizonal } from "lucide-react";
-import useSpeechToText from "@/app/hooks/useSpeechRecognition";
-import MultiImagePicker from "../image-embedder";
-import useChatStore from "@/app/hooks/useChatStore";
-import Image from "next/image";
-import { ChatRequestOptions, Message } from "ai";
-import { ChatInput } from "../ui/chat/chat-input";
+} from '@radix-ui/react-icons';
+import { Mic, SendHorizonal } from 'lucide-react';
+import useSpeechToText from '@/app/hooks/useSpeechRecognition';
+import MultiImagePicker from '../image-embedder';
+import useChatStore from '@/app/hooks/useChatStore';
+import Image from 'next/image';
+import { ChatRequestOptions, Message } from 'ai';
+import { ChatInput } from '../ui/chat/chat-input';
 
 interface ChatBottombarProps {
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (
     e: React.FormEvent<HTMLFormElement>,
-    chatRequestOptions?: ChatRequestOptions
+    chatRequestOptions?: ChatRequestOptions,
   ) => void;
   isLoading: boolean;
   stop: () => void;
@@ -47,7 +47,7 @@ export default function ChatBottombar({
   const selectedModel = useChatStore((state) => state.selectedModel);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
     }
@@ -61,7 +61,7 @@ export default function ChatBottombar({
   };
 
   const stopVoiceInput = () => {
-    setInput && setInput(transcript.length ? transcript : "");
+    setInput && setInput(transcript.length ? transcript : '');
     stopListening();
   };
 
@@ -72,7 +72,7 @@ export default function ChatBottombar({
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
-      console.log("Input focused");
+      console.log('Input focused');
     }
   }, [inputRef]);
 
@@ -84,12 +84,12 @@ export default function ChatBottombar({
           className="w-full items-center flex flex-col  bg-accent dark:bg-card rounded-lg "
         >
           <ChatInput
-            value={isListening ? (transcript.length ? transcript : "") : input}
+            value={isListening ? (transcript.length ? transcript : '') : input}
             ref={inputRef}
             onKeyDown={handleKeyPress}
             onChange={handleInputChange}
             name="message"
-            placeholder={!isListening ? "Enter your prompt here" : "Listening"}
+            placeholder={!isListening ? 'Enter your prompt here' : 'Listening'}
             className="max-h-40 px-6 pt-6 border-0 shadow-none bg-accent rounded-lg text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed dark:bg-card"
           />
 
@@ -134,8 +134,8 @@ export default function ChatBottombar({
                   <Button
                     className={`shrink-0 rounded-full ${
                       isListening
-                        ? "relative bg-blue-500/30 hover:bg-blue-400/30"
-                        : ""
+                        ? 'relative bg-blue-500/30 hover:bg-blue-400/30'
+                        : ''
                     }`}
                     variant="ghost"
                     size="icon"
@@ -182,7 +182,7 @@ export default function ChatBottombar({
                         width={20}
                         height={20}
                         className="h-auto rounded-md w-auto max-w-[100px] max-h-[100px]"
-                        alt={""}
+                        alt={''}
                       />
                     </div>
                     <Button

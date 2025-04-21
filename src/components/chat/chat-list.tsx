@@ -1,20 +1,21 @@
-import { Message } from "ai/react";
-import React from "react";
-import ChatMessage from "./chat-message";
-import { ChatMessageList } from "../ui/chat/chat-message-list";
+import { Message } from 'ai/react';
+import React from 'react';
+import ChatMessage from './chat-message';
+import { ChatMessageList } from '../ui/chat/chat-message-list';
 import {
   ChatBubble,
   ChatBubbleAvatar,
   ChatBubbleMessage,
-} from "../ui/chat/chat-bubble";
-import { ChatRequestOptions } from "ai";
+} from '../ui/chat/chat-bubble';
+import { ChatRequestOptions } from 'ai';
 
 interface ChatListProps {
   messages: Message[];
   isLoading: boolean;
   loadingSubmit?: boolean;
+  currentToolCallInfo: { toolName: string; toolCallId: string } | null;
   reload: (
-    chatRequestOptions?: ChatRequestOptions
+    chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
 }
 
@@ -22,6 +23,7 @@ export default function ChatList({
   messages,
   isLoading,
   loadingSubmit,
+  currentToolCallInfo,
   reload,
 }: ChatListProps) {
   return (
@@ -33,6 +35,13 @@ export default function ChatList({
             message={message}
             isLast={index === messages.length - 1}
             isLoading={isLoading}
+            toolCallInfo={
+              index === messages.length - 1 &&
+              message.role === 'assistant' &&
+              isLoading
+                ? currentToolCallInfo
+                : null
+            }
             reload={reload}
           />
         ))}

@@ -15,8 +15,9 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   ExtendedMessage,
-  modelSupportsFunctionCalling,
+  modelSupportsToolCalling,
 } from '@/utils/function-calling';
+import { StreamData } from 'ai';
 
 export interface ChatProps {
   id: string;
@@ -44,6 +45,9 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
       }
     },
     onFinish: (message) => {
+      setCurrentToolCallInfo(null);
+      console.log('✅ Response finished, clearing tool call info.');
+
       const endTime = Date.now();
       const responseTime = requestStartTime
         ? endTime - requestStartTime
@@ -82,10 +86,21 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
     },
     onError: (error) => {
       setRequestStartTime(null); // Reset start time on error too
+      setCurrentToolCallInfo(null);
+      console.log('❌ Error occurred, clearing tool call info.');
       setLoadingSubmit(false);
       router.replace('/');
       console.error(error.message);
       console.error(error.cause);
+    },
+    onToolCall: ({ toolCall }) => {
+      setCurrentToolCallInfo({
+        toolName: toolCall.toolName,
+        toolCallId: toolCall.toolCallId,
+      });
+      console.log(
+        `🛠️ Tool call received via onToolCall: ${toolCall.toolName} (${toolCall.toolCallId})`,
+      );
     },
   });
 
@@ -101,6 +116,12 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
   const saveMessages = useChatStore((state) => state.saveMessages);
   const getMessagesById = useChatStore((state) => state.getMessagesById);
   const router = useRouter();
+
+  // State to track the currently executing tool call
+  const [currentToolCallInfo, setCurrentToolCallInfo] = useState<{
+    toolName: string;
+    toolCallId: string;
+  } | null>(null);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -130,7 +151,7 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
       : [];
 
     // Check if the model supports function calling
-    const supportsFunctionCalling = modelSupportsFunctionCalling(selectedModel);
+    const supportsToolCalling = modelSupportsToolCalling(selectedModel);
 
     const requestOptions: ChatRequestOptions = {
       body: {
@@ -253,6 +274,7 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
             messages={messages}
             isLoading={isLoading}
             loadingSubmit={loadingSubmit}
+            currentToolCallInfo={currentToolCallInfo}
             reload={async () => {
               removeLatestMessage();
 
