@@ -31,13 +31,18 @@ import {
 import { useVoiceStore } from '../../utils/voice-store';
 import { FunctionCallResult } from '../function-call-result';
 import { ExtendedMessage } from '@/utils/function-calling';
-import { StreamData } from 'ai';
+import WeatherWidget, { WeatherWidgetProps } from '../widgets/weather-widget';
+
+// Define structure for tool_calls and tool_results if not already typed
+// (These might come from the 'ai' package types in a real scenario)
+// interface ToolCall { ... } // No longer checking message.tool_calls
+// interface ToolResult { ... } // No longer checking message.tool_results
 
 export type ChatMessageProps = {
   message: ExtendedMessage;
   isLast: boolean;
   isLoading: boolean | undefined;
-  toolCallInfo: { toolName: string; toolCallId: string } | null;
+  toolCallInfo?: { toolName: string; toolCallId: string } | null;
   reload: (
     chatRequestOptions?: ChatRequestOptions,
   ) => Promise<string | null | undefined>;
@@ -97,20 +102,36 @@ function ChatMessage({
 
   const contentParts = useMemo(() => cleanContent.split('```'), [cleanContent]);
 
-  // Extract function call and result if present
-  const functionCall = message.function_call;
-  const functionCallResult = message.function_call_result;
+  // Extract function call and result if present (keep for potential fallback)
+  // const functionCall = message.function_call;
+  // const functionCallResult = message.function_call_result;
+
+  // Extract tool calls and results from the message
+  // const toolCalls = (message as any).tool_calls as ToolCall[] | undefined; // Removed
+  // const toolResultsData = (message as any).tool_results as ToolResult[] | undefined; // Renamed to avoid conflict
 
   // Log when function calls are present
   useEffect(() => {
-    if (functionCall && functionCallResult) {
-      console.log('🎯 Message contains function call:', {
-        messageId: message.id,
-        functionName: functionCall.name,
-        hasResult: !!functionCallResult,
-      });
+    // Check if toolCallInfo exists before accessing it
+    if (toolCallInfo && !cleanContent) {
+      console.log(
+        '🎯 ChatMessage received toolCallInfo while content is empty:',
+        toolCallInfo,
+      );
     }
-  }, [message.id, functionCall, functionCallResult]);
+    // Conditionally log if tool_calls are present on the message itself
+    // This is separate from the heuristically passed toolCallInfo
+    if (
+      (message as any).tool_calls &&
+      !(message as any).tool_calls.length &&
+      !cleanContent
+    ) {
+      console.log(
+        '🔧 ChatMessage received tool_calls while content is empty:',
+        (message as any).tool_calls,
+      );
+    }
+  }, [message.id, toolCallInfo, cleanContent, (message as any).tool_calls]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
@@ -192,19 +213,14 @@ function ChatMessage({
     );
 
   const renderContent = () => {
-    // If tool call is in progress and no content/result yet, show indicator
-    if (toolCallInfo && !cleanContent && !functionCallResult) {
-      return (
-        <div className="text-muted-foreground italic text-sm">
-          Using {toolCallInfo.toolName} tool...
-        </div>
-      );
-    }
-    // Otherwise, render normal content
-    return contentParts.map((part, index) =>
+    // Render normal content parts
+    // Filter out potentially empty parts if cleanContent itself is empty initially
+    const partsToRender = cleanContent ? contentParts : [];
+    return partsToRender.map((part, index) =>
       index % 2 === 0 ? (
         <Markdown key={index} remarkPlugins={[remarkGfm]}>
-          {part}
+          {/* Add zero-width space if part is empty to prevent markdown rendering issues */}
+          {part || '\u200B'}
         </Markdown>
       ) : (
         <pre className="whitespace-pre-wrap" key={index}>
@@ -357,15 +373,16 @@ function ChatMessage({
         <ChatBubbleMessage>
           {renderThinkingProcess()}
           {renderAttachments()}
-          {renderContent()}
 
-          {/* Display function call result if present */}
-          {functionCall && functionCallResult && (
-            <FunctionCallResult
-              functionCall={functionCall}
-              result={functionCallResult}
-            />
+          {/* Render Tool Indicator based *only* on toolCallInfo prop */}
+          {toolCallInfo && (
+            <div className="text-muted-foreground italic text-sm mb-1">
+              Using {toolCallInfo.toolName} tool...
+            </div>
           )}
+
+          {/* Render content normally */}
+          {renderContent()}
 
           {renderActionButtons()}
           {/* Render the debug info below the message content */}

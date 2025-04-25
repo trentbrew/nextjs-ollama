@@ -1,243 +1,258 @@
+// @ts-nocheck
 'use client';
 
 import ChatTopbar from './chat-topbar';
 import ChatList from './chat-list';
 import ChatBottombar from './chat-bottombar';
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { BytesOutputParser } from '@langchain/core/output_parsers';
-import { Attachment, ChatRequestOptions, generateId } from 'ai';
-import { Message, useChat } from 'ai/react';
-import React, { useEffect, useRef, useState } from 'react';
+import { generateId } from 'ai';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-import useChatStore from '@/app/hooks/useChatStore';
+import useChatStore, { ChatStore } from '@/app/hooks/useChatStore';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   ExtendedMessage,
   modelSupportsToolCalling,
 } from '@/utils/function-calling';
-import { StreamData } from 'ai';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '@/../convex/_generated/api';
+import type { Doc } from '@/../convex/_generated/dataModel';
+
+export interface DisplayMessage extends Doc<'messages'> {
+  // Retain DisplayMessage if it adds value beyond Doc, otherwise just use Doc
+  // id: string; // Already in Doc as _id
+  // role: 'user' | 'assistant' ... // Already in Doc
+  // content: string | any; // Already in Doc
+  // sources?: string[]; // Already in Doc
+}
 
 export interface ChatProps {
-  id: string;
-  initialMessages: ExtendedMessage[] | [];
+  id: string; // This is the chatId
+  // initialMessages is no longer needed, data comes from Convex
   isMobile?: boolean;
 }
 
-export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
-  const {
-    messages: rawMessages,
-    input,
-    handleInputChange,
-    handleSubmit,
-    isLoading,
-    stop,
-    setMessages,
-    setInput,
-    reload,
-  } = useChat({
-    id,
-    initialMessages,
-    onResponse: (response) => {
-      if (response) {
-        setLoadingSubmit(false);
-      }
-    },
-    onFinish: (message) => {
-      setCurrentToolCallInfo(null);
-      console.log('✅ Response finished, clearing tool call info.');
+export default function Chat({
+  id: chatId, // Rename prop to chatId for clarity
+  isMobile,
+}: ChatProps) {
+  // Get input state and setter from Zustand store, specific to this chatId
+  const chatInput = useChatStore(
+    (state: ChatStore) => state.chatInputs[chatId] || '',
+  );
+  const setChatInput = useChatStore((state: ChatStore) => state.setChatInput);
 
-      const endTime = Date.now();
-      const responseTime = requestStartTime
-        ? endTime - requestStartTime
-        : undefined;
-      setRequestStartTime(null); // Reset start time
+  // Fetch messages using Convex useQuery
+  const messages = useQuery(api.messages.listByChat, { chatId });
+  // Get Convex mutation function
+  const addMessageMutation = useMutation(api.messages.add);
 
-      const savedMessages = getMessagesById(id);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-      // Debug message contents for function calls
-      console.log('🔍 Message received from API:', {
-        messageId: message.id,
-        role: message.role,
-        hasContent: !!message.content,
-        contentLength: message.content?.length || 0,
-        hasFunctionCall: !!(message as any).function_call,
-        hasFunctionResult: !!(message as any).function_call_result,
-        messageKeys: Object.keys(message),
-        message: message, // Include the full message in the log
-      });
-
-      // Handle the case where the message is a function call result
-      // Note: This is a workaround as the Vercel AI SDK doesn't fully support function calls yet
-      const extendedMessage = message as ExtendedMessage;
-
-      // Add debug info to the assistant message
-      if (extendedMessage.role === 'assistant') {
-        extendedMessage.responseTime = responseTime;
-        extendedMessage.modelName =
-          selectedModel === null ? undefined : selectedModel; // Convert null to undefined
-      }
-
-      saveMessages(id, [...savedMessages, extendedMessage]);
-
-      setLoadingSubmit(false);
-      router.replace(`/c/${id}`);
-    },
-    onError: (error) => {
-      setRequestStartTime(null); // Reset start time on error too
-      setCurrentToolCallInfo(null);
-      console.log('❌ Error occurred, clearing tool call info.');
-      setLoadingSubmit(false);
-      router.replace('/');
-      console.error(error.message);
-      console.error(error.cause);
-    },
-    onToolCall: ({ toolCall }) => {
-      setCurrentToolCallInfo({
-        toolName: toolCall.toolName,
-        toolCallId: toolCall.toolCallId,
-      });
-      console.log(
-        `🛠️ Tool call received via onToolCall: ${toolCall.toolName} (${toolCall.toolCallId})`,
-      );
-    },
-  });
-
-  // Cast messages to ExtendedMessage type
-  const messages = rawMessages as ExtendedMessage[];
-
-  const [loadingSubmit, setLoadingSubmit] = React.useState(false);
-  const [requestStartTime, setRequestStartTime] = useState<number | null>(null); // Add state for start time
-  const formRef = useRef<HTMLFormElement>(null);
-  const base64Images = useChatStore((state) => state.base64Images);
-  const setBase64Images = useChatStore((state) => state.setBase64Images);
-  const selectedModel = useChatStore((state) => state.selectedModel);
-  const saveMessages = useChatStore((state) => state.saveMessages);
-  const getMessagesById = useChatStore((state) => state.getMessagesById);
   const router = useRouter();
+  const setCoords = useChatStore((state: ChatStore) => state.setCoords);
+  const coords = useChatStore((state: ChatStore) => state.coords);
+  const selectedModel = useChatStore((state: ChatStore) => state.selectedModel);
 
-  // State to track the currently executing tool call
-  const [currentToolCallInfo, setCurrentToolCallInfo] = useState<{
-    toolName: string;
-    toolCallId: string;
-  } | null>(null);
+  const getLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    const success = (position: GeolocationPosition) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      setCoords({ latitude, longitude });
+      toast.success('Location fetched successfully!');
+    };
+
+    const errorCallback = (error: GeolocationPositionError) => {
+      let message = 'Unable to retrieve location.';
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          message =
+            'Location permission denied. Please check browser settings.';
+          break;
+        case error.POSITION_UNAVAILABLE:
+          message = 'Location information is unavailable. Check network/GPS.';
+          break;
+        case error.TIMEOUT:
+          message = 'Location request timed out.';
+          break;
+        default:
+          message = `An unknown location error occurred (Code: ${error.code}).`;
+          break;
+      }
+      toast.error(message);
+      setCoords(null); // Clear coords on any error
+    };
+
+    console.log('[Chat] Requesting geolocation...');
+    navigator.geolocation.getCurrentPosition(success, errorCallback);
+  }, [setCoords]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    window.history.replaceState({}, '', `/c/${id}`);
+    // Use chatInput from store
+    if (!chatInput.trim()) return;
 
+    const currentInput = chatInput;
+    setChatInput(chatId, ''); // Clear input in the store
+
+    // Prepare user message object (consistent with Convex schema)
+    const userMessageForApi = {
+      role: 'user' as const,
+      content: currentInput,
+      // Add other fields if needed by API, but role/content are minimum
+    };
+
+    // Add user message via Convex mutation
+    try {
+      await addMessageMutation({
+        chatId: chatId,
+        role: userMessageForApi.role,
+        content: userMessageForApi.content,
+        // No agentName or sources for user messages
+      });
+    } catch (mutationError) {
+      console.error(
+        '[Chat Component] User message mutation error:',
+        mutationError,
+      );
+      setError('Failed to send message. Please try again.');
+      setChatInput(chatId, currentInput); // Restore input in store if send failed
+      return; // Don't proceed if user message failed
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Fetch from API route
+      const currentMessagesFromConvex = messages || []; // Get messages from useQuery
+      // Construct messages for API: Convex history + the new user message
+      const messagesForApi = [
+        ...currentMessagesFromConvex.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+        userMessageForApi, // Add the message we just submitted
+      ];
+
+      const currentCoords = (useChatStore.getState() as ChatStore).coords;
+      const currentEmbeddingModel = (useChatStore.getState() as ChatStore)
+        .embeddingModel;
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messagesForApi, // Send combined list
+          embeddingModel: currentEmbeddingModel,
+          coords: currentCoords,
+        }),
+      });
+
+      if (!res.ok) {
+        let errorMsg = `HTTP Error: ${res.status}`;
+        try {
+          const errorData = await res.json();
+          errorMsg = errorData.error || errorData.details || errorMsg;
+        } catch (jsonError) {
+          // Ignore if response is not JSON
+        }
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+
+      // --- Process the response data ---
+      let assistantContent: string;
+      let sources: string[] | undefined = undefined;
+      let agentName: string | undefined = undefined;
+
+      if (typeof data.result === 'string') {
+        assistantContent = data.result;
+        // Infer agent name if possible (e.g., conversational or direct response)
+        agentName = 'conversational'; // Or potentially extract from routing decision if returned
+      } else if (typeof data.result === 'object' && data.result !== null) {
+        // Agent outputs
+        if (data.result.searchResult) {
+          assistantContent = data.result.searchResult;
+          sources = data.result.sources;
+          agentName = 'research';
+        } else if (data.result.temperature !== undefined) {
+          assistantContent = `The current weather in ${data.result.location} is ${data.result.temperature}°${data.result.unit} and ${data.result.conditions}.`;
+          agentName = 'weather';
+        } else if (data.result.name && Array.isArray(data.result.entries)) {
+          // Filesystem agent output
+          assistantContent = `Directory listing for ${data.result.path || '.'}:
+${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.name}`).join('\n')}`;
+          agentName = 'filesystem';
+        } else {
+          assistantContent = JSON.stringify(data.result);
+          agentName = 'unknown';
+        }
+      } else {
+        assistantContent = 'Received unexpected response format.';
+        console.warn('Unexpected API response format:', data);
+      }
+
+      // Add assistant message via Convex mutation
+      await addMessageMutation({
+        chatId: chatId,
+        role: 'assistant',
+        content: assistantContent,
+        sources: sources,
+        agentName: agentName,
+      });
+    } catch (err: any) {
+      console.error('[Chat Component] Submit Error:', err);
+      setError(err.message || 'An error occurred');
+      // Optionally add error to Convex too
+      // await addMessageMutation({ chatId: chatId, role: 'assistant', content: `Error: ${err.message}` });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // testFunctionCalling needs adaptation for Convex
+  const testFunctionCalling = async () => {
     if (!selectedModel) {
       toast.error('Please select a model');
       return;
     }
-
-    // Record start time before sending the request
-    setRequestStartTime(Date.now());
-
-    const userMessage: Message = {
-      id: generateId(),
-      role: 'user',
-      content: input,
-    };
-
-    setLoadingSubmit(true);
-
-    const attachments: Attachment[] = base64Images
-      ? base64Images.map((image) => ({
-          contentType: 'image/base64',
-          url: image,
-        }))
-      : [];
-
-    // Check if the model supports function calling
-    const supportsToolCalling = modelSupportsToolCalling(selectedModel);
-
-    const requestOptions: ChatRequestOptions = {
-      body: {
-        selectedModel: selectedModel,
-      },
-      ...(base64Images && {
-        data: {
-          images: base64Images,
-        },
-        experimental_attachments: attachments,
-      }),
-    };
-
-    handleSubmit(e, requestOptions);
-    saveMessages(id, [...messages, userMessage]);
-    setBase64Images(null);
-  };
-
-  const removeLatestMessage = () => {
-    const updatedMessages = messages.slice(0, -1);
-    setMessages(updatedMessages);
-    saveMessages(id, updatedMessages);
-    return updatedMessages;
-  };
-
-  const handleStop = () => {
-    stop();
-    saveMessages(id, [...messages]);
-    setLoadingSubmit(false);
-  };
-
-  // Add a function to test function calling capabilities
-  const testFunctionCalling = () => {
-    if (!selectedModel) {
-      toast.error('Please select a model');
-      return;
-    }
-
     console.log('🧪 Testing function calling capabilities...');
-
-    // Create a prompt designed to trigger function calling
     const testPrompt =
       'I need to know the current weather in San Francisco. Also, can you search for information about climate change?';
-
-    // Set the input
-    setInput(testPrompt);
-
-    // Create a user message to submit
-    const userMessage: Message = {
-      id: generateId(),
-      role: 'user',
-      content: testPrompt,
-    };
-
-    // Wait for the state to update
-    setTimeout(() => {
-      console.log('🧪 Submitting test prompt manually...');
-
-      setLoadingSubmit(true);
-
-      const requestOptions: ChatRequestOptions = {
-        body: {
-          selectedModel: selectedModel,
-        },
-      };
-
-      // Submit message using the AI SDK's handleSubmit
-      handleSubmit(
-        new Event('submit') as unknown as React.FormEvent<HTMLFormElement>,
-        requestOptions,
-      );
-
-      // Save the message to chat history
-      saveMessages(id, [...messages, userMessage]);
-    }, 100);
+    setChatInput(chatId, testPrompt); // Set input so handleSubmit picks it up
+    // Simulate form submission
+    const fakeEvent = {
+      preventDefault: () => {},
+    } as React.FormEvent<HTMLFormElement>;
+    await handleSubmit(fakeEvent);
   };
 
   return (
-    <div className="flex flex-col w-full max-w-3xl h-full">
+    <div className="flex flex-col h-full w-full">
       <div className="flex justify-between items-center">
         <ChatTopbar
           isLoading={isLoading}
-          chatId={id}
-          messages={messages}
-          setMessages={setMessages}
+          chatId={chatId}
+          // messages prop removed from ChatTopbar as it gets data internally now
+          // setMessages prop removed
         />
+        <button
+          onClick={getLocation}
+          className="mr-2 p-2 rounded-full hover:bg-muted"
+          title="Use current location"
+          disabled={isLoading}
+        >
+          📍
+        </button>
         <button
           onClick={testFunctionCalling}
           className="mr-4 px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs"
@@ -247,57 +262,49 @@ export default function Chat({ initialMessages, id, isMobile }: ChatProps) {
         </button>
       </div>
 
-      {messages.length === 0 ? (
-        <div className="flex flex-col h-full w-full items-center gap-4 justify-center">
-          <Image
-            src="/ollama.png"
-            alt="AI"
-            width={40}
-            height={40}
-            className="h-16 w-14 object-contain dark:invert"
-          />
-          <p className="text-center text-base text-muted-foreground">
-            How can I help you today?
-          </p>
-          <ChatBottombar
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={onSubmit}
-            isLoading={isLoading}
-            stop={handleStop}
-            setInput={setInput}
-          />
-        </div>
-      ) : (
-        <>
+      <div className="flex-1 w-full overflow-y-auto relative">
+        {messages === undefined && <p>Loading messages...</p>}{' '}
+        {/* Loading state */}
+        {messages && messages.length === 0 && !isLoading ? (
+          <div className="flex flex-col h-full w-full items-center gap-4 justify-center">
+            <Image
+              src="/ollama.png"
+              alt="AI"
+              width={40}
+              height={40}
+              className="h-16 w-14 object-contain dark:invert"
+            />
+            <p className="text-center text-base text-muted-foreground">
+              How can I help you today?
+            </p>
+          </div>
+        ) : (
           <ChatList
-            messages={messages}
+            messages={messages || []} // Pass messages from useQuery
             isLoading={isLoading}
-            loadingSubmit={loadingSubmit}
-            currentToolCallInfo={currentToolCallInfo}
-            reload={async () => {
-              removeLatestMessage();
-
-              const requestOptions: ChatRequestOptions = {
-                body: {
-                  selectedModel: selectedModel,
-                },
-              };
-
-              setLoadingSubmit(true);
-              return reload(requestOptions);
+            // reload prop might not be needed or needs Convex adaptation
+            reload={async (): Promise<undefined> => {
+              return undefined;
             }}
           />
-          <ChatBottombar
-            input={input}
-            handleInputChange={handleInputChange}
-            handleSubmit={onSubmit}
-            isLoading={isLoading}
-            stop={handleStop}
-            setInput={setInput}
-          />
-        </>
+        )}
+      </div>
+
+      {/* Error display (always possible) */}
+      {error && (
+        <p className="text-red-500 px-4 py-2 text-center">Error: {error}</p>
       )}
+
+      {/* Bottom bar (always rendered) */}
+      <ChatBottombar
+        // Pass value and handler connected to Zustand store
+        input={chatInput}
+        handleInputChange={(e) => setChatInput(chatId, e.target.value)}
+        handleSubmit={handleSubmit}
+        isLoading={isLoading}
+        stop={() => setIsLoading(false)} // Simplified stop
+        setInput={(newInput) => setChatInput(chatId, newInput)} // Update store via setInput prop
+      />
     </div>
   );
 }

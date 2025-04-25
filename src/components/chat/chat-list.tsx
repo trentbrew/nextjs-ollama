@@ -1,33 +1,22 @@
-import { Message } from 'ai/react';
 import React from 'react';
 import ChatMessage from './chat-message';
 import { ChatMessageList } from '../ui/chat/chat-message-list';
-import {
-  ChatBubble,
-  ChatBubbleAvatar,
-  ChatBubbleMessage,
-} from '../ui/chat/chat-bubble';
-import { ChatRequestOptions } from 'ai';
+import { Loader2 } from 'lucide-react';
+import { DisplayMessage } from './chat';
 
 interface ChatListProps {
-  messages: Message[];
+  messages: DisplayMessage[];
   isLoading: boolean;
-  loadingSubmit?: boolean;
-  currentToolCallInfo: { toolName: string; toolCallId: string } | null;
-  reload: (
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
+  reload?: () => Promise<void>;
 }
 
 export default function ChatList({
   messages,
   isLoading,
-  loadingSubmit,
-  currentToolCallInfo,
   reload,
 }: ChatListProps) {
   return (
-    <div className="flex-1 w-full overflow-y-auto">
+    <div className="flex-1 w-full overflow-y-auto relative">
       <ChatMessageList>
         {messages.map((message, index) => (
           <ChatMessage
@@ -35,26 +24,20 @@ export default function ChatList({
             message={message}
             isLast={index === messages.length - 1}
             isLoading={isLoading}
-            toolCallInfo={
-              index === messages.length - 1 &&
-              message.role === 'assistant' &&
-              isLoading
-                ? currentToolCallInfo
-                : null
+            reload={
+              reload
+                ? async () => {
+                    await reload();
+                  }
+                : undefined
             }
-            reload={reload}
           />
         ))}
-        {loadingSubmit && (
-          <ChatBubble variant="received">
-            <ChatBubbleAvatar
-              src="/ollama.png"
-              width={6}
-              height={6}
-              className="object-contain dark:invert"
-            />
-            <ChatBubbleMessage isLoading />
-          </ChatBubble>
+        {isLoading && messages[messages.length - 1]?.role === 'user' && (
+          <div className="flex justify-center items-center py-2 px-4 text-sm text-muted-foreground text-center">
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Thinking...
+          </div>
         )}
       </ChatMessageList>
     </div>
