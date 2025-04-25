@@ -37,6 +37,7 @@ export const add = mutation({
     tool_calls: v.optional(v.any()),
     sources: v.optional(v.array(v.string())),
     agentName: v.optional(v.string()),
+    embedding: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     // Insert the new message into the database
@@ -49,6 +50,7 @@ export const add = mutation({
       tool_calls: args.tool_calls,
       sources: args.sources,
       agentName: args.agentName,
+      embedding: args.embedding,
       // Convex automatically adds _creationTime and _id
     });
   },

@@ -1,7 +1,7 @@
-import * as React from "react";
-import { ArrowDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useAutoScroll } from "@/components/ui/chat/hooks/useAutoScroll";
+import * as React from 'react';
+import { ArrowDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAutoScroll } from '@/components/ui/chat/hooks/useAutoScroll';
 
 interface ChatMessageListProps extends React.HTMLAttributes<HTMLDivElement> {
   smooth?: boolean;
@@ -23,7 +23,7 @@ const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>(
     return (
       <div className="relative w-full h-full">
         <div
-          className={`flex flex-col w-full h-full p-4 overflow-y-auto ${className}`}
+          className={`flex flex-col w-full h-full p-12 overflow-y-auto ${className}`}
           ref={scrollRef}
           onWheel={disableAutoScroll}
           onTouchMove={disableAutoScroll}
@@ -47,9 +47,9 @@ const ChatMessageList = React.forwardRef<HTMLDivElement, ChatMessageListProps>(
         )}
       </div>
     );
-  }
+  },
 );
 
-ChatMessageList.displayName = "ChatMessageList";
+ChatMessageList.displayName = 'ChatMessageList';
 
 export { ChatMessageList };

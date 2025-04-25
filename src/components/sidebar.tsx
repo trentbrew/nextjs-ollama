@@ -72,6 +72,52 @@ export function Sidebar({
     }
   };
 
+  if (context === 'settings') {
+    return (
+      <div
+        data-collapsed={isCollapsed}
+        className="relative justify-between group lg:bg-accent/20 lg:dark:bg-card/35 flex flex-col h-full gap-4 p-2 data-[collapsed=true]:p-2 "
+      >
+        <div className="flex flex-col justify-between p-2 max-h-fit overflow-y-auto">
+          <ScrollArea className="flex flex-col pt-10 gap-2 flex-grow">
+            <p className="pl-4 text-xs text-muted-foreground">Settings</p>
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/settings#appearance')}
+              className="w-full justify-start"
+            >
+              Appearance
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/settings#profile')}
+              className="w-full justify-start"
+            >
+              Profile
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/settings#integrations')}
+              className="w-full justify-start"
+            >
+              Integrations
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/settings#language-model')}
+              className="w-full justify-start"
+            >
+              Language Model
+            </Button>
+          </ScrollArea>
+        </div>
+        <div className="justify-end px-2 py-2 w-full border-t">
+          <UserSettings />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       data-collapsed={isCollapsed}

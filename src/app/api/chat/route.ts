@@ -80,7 +80,10 @@ export async function POST(req: NextRequest) {
           );
           // Return the structured output from the agent
           // Client side will need to format this appropriately
-          return NextResponse.json({ result: output });
+          return NextResponse.json({
+            agentName: routing.agent,
+            result: output,
+          });
         } catch (agentError: unknown) {
           console.error(
             `❌ [API Route] Error during agent ${routing.agent} execution:`,

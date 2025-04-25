@@ -3,8 +3,8 @@
 import {
   MessageSquare,
   Settings,
+  FileText,
   HelpCircle,
-  LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -41,13 +41,13 @@ export function IconSidebar({ onNavigate, currentView }: IconSidebarProps) {
       </Button>
 
       <Button
-        variant={currentView === 'dashboard' ? 'secondary' : 'ghost'}
+        variant={currentView === 'notes' ? 'secondary' : 'ghost'}
         size="icon"
         className="h-10 w-10"
-        title="Dashboard"
-        onClick={() => onNavigate('dashboard')}
+        title="Notes"
+        onClick={() => onNavigate('notes')}
       >
-        <LayoutDashboard className="h-5 w-5" />
+        <FileText className="h-5 w-5" />
       </Button>
 
       {/* Add spacer or user icon at the bottom if needed */}

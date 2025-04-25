@@ -56,6 +56,16 @@ export default function Chat({
   const coords = useChatStore((state: ChatStore) => state.coords);
   const selectedModel = useChatStore((state: ChatStore) => state.selectedModel);
 
+  // Ref for the scrollable chat area
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages are loaded or changed
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   const getLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser.');
@@ -100,14 +110,30 @@ export default function Chat({
     if (!chatInput.trim()) return;
 
     const currentInput = chatInput;
-    setChatInput(chatId, ''); // Clear input in the store
+    setChatInput(chatId, '');
+    // Get the selected embedding model from store
+    const embeddingModelSelected = (useChatStore.getState() as ChatStore).embeddingModel;
 
     // Prepare user message object (consistent with Convex schema)
     const userMessageForApi = {
       role: 'user' as const,
       content: currentInput,
-      // Add other fields if needed by API, but role/content are minimum
     };
+    // Generate embedding for user message if model selected
+    let userEmbedding: number[] | undefined;
+    if (embeddingModelSelected) {
+      const embedRes = await fetch('/api/embeddings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text: currentInput, embeddingModel: embeddingModelSelected })
+      });
+      if (embedRes.ok) {
+        const embedData = await embedRes.json();
+        userEmbedding = embedData.embedding;
+      } else {
+        console.error('Error generating embedding for user message', await embedRes.text());
+      }
+    }
 
     // Add user message via Convex mutation
     try {
@@ -115,7 +141,7 @@ export default function Chat({
         chatId: chatId,
         role: userMessageForApi.role,
         content: userMessageForApi.content,
-        // No agentName or sources for user messages
+        embedding: userEmbedding,
       });
     } catch (mutationError) {
       console.error(
@@ -202,12 +228,28 @@ ${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.na
       }
 
       // Add assistant message via Convex mutation
+      // Generate embedding for assistant message if model selected
+      let assistantEmbedding: number[] | undefined;
+      if (embeddingModelSelected) {
+        const embedRes2 = await fetch('/api/embeddings', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ text: assistantContent, embeddingModel: embeddingModelSelected })
+        });
+        if (embedRes2.ok) {
+          const embedData2 = await embedRes2.json();
+          assistantEmbedding = embedData2.embedding;
+        } else {
+          console.error('Error generating embedding for assistant message', await embedRes2.text());
+        }
+      }
       await addMessageMutation({
         chatId: chatId,
         role: 'assistant',
         content: assistantContent,
         sources: sources,
         agentName: agentName,
+        embedding: assistantEmbedding,
       });
     } catch (err: any) {
       console.error('[Chat Component] Submit Error:', err);
@@ -238,7 +280,7 @@ ${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.na
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex justify-between items-center">
+      {/* <div className="flex justify-between items-center">
         <ChatTopbar
           isLoading={isLoading}
           chatId={chatId}
@@ -260,9 +302,12 @@ ${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.na
         >
           Test Functions
         </button>
-      </div>
+      </div> */}
 
-      <div className="flex-1 w-full overflow-y-auto relative">
+      <div
+        className="flex-1 w-full overflow-y-auto relative"
+        ref={chatScrollRef}
+      >
         {messages === undefined && <p>Loading messages...</p>}{' '}
         {/* Loading state */}
         {messages && messages.length === 0 && !isLoading ? (

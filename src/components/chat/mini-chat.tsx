@@ -76,11 +76,28 @@ export default function MiniChat() {
     const currentInput = chatInput;
     setChatInput(currentChatId, '');
 
+    // Generate embedding for user message if model selected
+    let userEmbedding: number[] | undefined;
+    if (currentEmbeddingModel) {
+      const embedRes = await fetch('/api/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: currentInput, embeddingModel: currentEmbeddingModel }),
+      });
+      if (embedRes.ok) {
+        const embedData = await embedRes.json();
+        userEmbedding = embedData.embedding;
+      } else {
+        console.error('Error generating embedding for user message', await embedRes.text());
+      }
+    }
+
     try {
       await addMessageMutation({
         chatId: currentChatId,
         role: 'user',
         content: currentInput,
+        embedding: userEmbedding,
       });
     } catch (mutationError) {
       console.error('User message mutation error:', mutationError);
@@ -128,31 +145,45 @@ export default function MiniChat() {
 
       let assistantContent: string;
       let sources: string[] | undefined = undefined;
-      let agentName: string | undefined = undefined;
+      let agentName: string | undefined = data.agentName || 'unknown';
 
       if (typeof data.result === 'string') {
         assistantContent = data.result;
-        agentName = 'conversational';
+        if (!data.agentName) {
+          agentName = data.result.startsWith('✅ Note') ? 'notes' : 'conversational';
+        }
       } else if (typeof data.result === 'object' && data.result !== null) {
-        if (data.result.searchResult) {
+        if (agentName === 'research' && data.result.searchResult) {
           assistantContent = data.result.searchResult;
           sources = data.result.sources;
-          agentName = 'research';
-        } else if (data.result.temperature !== undefined) {
+        } else if (agentName === 'weather' && data.result.temperature !== undefined) {
           assistantContent = `The current weather in ${data.result.location} is ${data.result.temperature}°${data.result.unit} and ${data.result.conditions}.`;
-          agentName = 'weather';
-        } else if (data.result.name && Array.isArray(data.result.entries)) {
+        } else if (agentName === 'filesystem' && data.result.path && Array.isArray(data.result.entries)) {
           assistantContent = `Directory listing for ${data.result.path || '.'}:
 ${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.name}`).join('\n')}`;
-          agentName = 'filesystem';
         } else {
           assistantContent = JSON.stringify(data.result);
-          agentName = 'unknown';
         }
       } else {
         assistantContent = 'Received unexpected response format.';
         console.warn('Unexpected API response format:', data);
         agentName = 'error';
+      }
+
+      // Generate embedding for assistant message if model selected
+      let assistantEmbedding: number[] | undefined;
+      if (currentEmbeddingModel) {
+        const embedRes2 = await fetch('/api/embeddings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: assistantContent, embeddingModel: currentEmbeddingModel }),
+        });
+        if (embedRes2.ok) {
+          const embedData2 = await embedRes2.json();
+          assistantEmbedding = embedData2.embedding;
+        } else {
+          console.error('Error generating embedding for assistant message', await embedRes2.text());
+        }
       }
 
       await addMessageMutation({
@@ -161,6 +192,7 @@ ${data.result.entries.map((e: any) => `${e.isDirectory ? '📁' : '📄'} ${e.na
         content: assistantContent,
         sources: sources,
         agentName: agentName,
+        embedding: assistantEmbedding,
       });
     } catch (err: any) {
       console.error('[MiniChat] Submit Error:', err);

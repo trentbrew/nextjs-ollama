@@ -124,7 +124,18 @@ class AgentRegistry {
       }
     }
 
-    // --- Add checks for other specific agents here ---
+    // Notes agent triggers: create, add, show, list notes
+    const notesAgent = this.getAgentByName('notes');
+    const notesTriggers = [
+      'note', // Catch general note references
+      'add note',
+      'create note',
+      'show notes',
+      'list notes',
+    ];
+    if (notesAgent && notesTriggers.some((t) => lowerInput.includes(t))) {
+      return notesAgent;
+    }
 
     // If no specific agent matched, fall back to the conversational agent
     const conversationalAgent = this.getAgentByName('conversational');

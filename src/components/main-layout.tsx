@@ -13,7 +13,7 @@ import SpeechInitializer from './speech-initializer';
 interface MainLayoutProps {
   children: React.ReactNode;
   chatId?: string; // Current chat ID for highlighting
-  sidebarContext?: 'chat' | 'settings'; // Determine sidebar content
+  sidebarContext?: 'chat' | 'settings' | 'notes'; // Determine sidebar content
 }
 
 export function MainLayout({

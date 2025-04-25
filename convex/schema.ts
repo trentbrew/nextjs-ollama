@@ -21,5 +21,12 @@ export default defineSchema({
     chatId: v.string(), // To group messages by conversation
     sources: v.optional(v.array(v.string())), // For research agent results
     agentName: v.optional(v.string()), // Track which agent generated the message
+    embedding: v.optional(v.array(v.number())), // Store embeddings for RAG
   }).index('by_chatId', ['chatId']), // Index for efficient querying by chat
+  // New table for storing user notes
+  notes: defineTable({
+    title: v.string(),
+    content: v.string(),
+    createdAt: v.number(),
+  }),
 });
